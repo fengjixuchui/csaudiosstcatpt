@@ -90,17 +90,15 @@ public:
     );
 
     NTSTATUS AcquireDMA(
-        _In_ PCMiniportWaveRTStream _Stream
-    );
-
-    NTSTATUS StartDMA(
+        _In_ PCMiniportWaveRTStream _Stream,
         UINT32 byteCount
     );
+
+    NTSTATUS StartDMA();
 
     NTSTATUS StopDMA();
 
     NTSTATUS CurrentPosition(UINT32* linkPos, UINT64* linearPos);
-    NTSTATUS UpdatePosition(UINT32 linkPos, UINT64 linearPos);
     
     NTSTATUS IsFormatSupported
     ( 
@@ -143,7 +141,9 @@ public:
     {
         PAGED_CODE();
 
-        m_pAdapterCommon = (PADAPTERCOMMON)UnknownAdapter; // weak ref.
+        m_pAdapterCommon = (PADAPTERCOMMON)UnknownAdapter;
+        if (m_pAdapterCommon)
+            m_pAdapterCommon->AddRef();
 
         if (MiniportPair->WaveDescriptor)
         {

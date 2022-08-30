@@ -76,12 +76,12 @@ private:
 
     STDMETHODIMP_(NTSTATUS) PrepareDMA(
         _In_ eDeviceType deviceType,
+        _In_ UINT32 byteCount,
         _In_ PMDL mdl,
         _In_ IPortWaveRTStream* stream);
 
     STDMETHODIMP_(NTSTATUS) StartDMA(
-        _In_ eDeviceType deviceType,
-        _In_ UINT32 byteCount
+        _In_ eDeviceType deviceType
     );
     STDMETHODIMP_(NTSTATUS) StopDMA(
         _In_ eDeviceType deviceType
@@ -90,11 +90,6 @@ private:
         _In_ eDeviceType deviceType,
         _Out_ UINT32* linkPos,
         _Out_ UINT64* linearPos
-    );
-    STDMETHODIMP_(NTSTATUS) UpdatePosition(
-        _In_ eDeviceType deviceType,
-        _In_ UINT32 linkPos,
-        _In_ UINT64 linearPos
     );
 
     STDMETHODIMP_(BOOL)     bDevSpecificRead();
@@ -842,15 +837,12 @@ Return Value:
 STDMETHODIMP_(NTSTATUS)
 CAdapterCommon::PrepareDMA(
     _In_ eDeviceType deviceType,
+    _In_ UINT32 byteCount,
     _In_ PMDL mdl,
     _In_ IPortWaveRTStream* stream
 ) {
     if (m_pHW) {
-        NTSTATUS status = m_pHW->acp3x_hw_params(deviceType);
-        if (!NT_SUCCESS(status)) {
-            return status;
-        }
-        return  m_pHW->acp3x_program_dma(deviceType, mdl, stream);
+        return  m_pHW->sst_program_dma(deviceType, byteCount, mdl, stream);
     }
     return STATUS_NO_SUCH_DEVICE;
 }
@@ -859,11 +851,10 @@ CAdapterCommon::PrepareDMA(
 #pragma code_seg()
 STDMETHODIMP_(NTSTATUS)
 CAdapterCommon::StartDMA(
-    _In_ eDeviceType deviceType,
-    _In_ UINT32 byteCount
+    _In_ eDeviceType deviceType
 ) {
     if (m_pHW) {
-        return m_pHW->acp3x_play(deviceType, byteCount);
+        return m_pHW->sst_play(deviceType);
     }
     return STATUS_NO_SUCH_DEVICE;
 }
@@ -875,7 +866,7 @@ CAdapterCommon::StopDMA(
     _In_ eDeviceType deviceType
 ) {
     if (m_pHW) {
-        return m_pHW->acp3x_stop(deviceType);
+        return m_pHW->sst_stop(deviceType);
     }
     return STATUS_NO_SUCH_DEVICE;
 }
@@ -889,21 +880,7 @@ CAdapterCommon::CurrentPosition(
     _Out_ UINT64* linearPos
 ) {
     if (m_pHW) {
-        return m_pHW->acp3x_current_position(deviceType, linkPos, linearPos);
-    }
-    return STATUS_NO_SUCH_DEVICE;
-}
-
-//=============================================================================
-#pragma code_seg()
-STDMETHODIMP_(NTSTATUS)
-CAdapterCommon::UpdatePosition(
-    _In_ eDeviceType deviceType,
-    _In_ UINT32 linkPos,
-    _In_ UINT64 linearPos
-) {
-    if (m_pHW) {
-        return m_pHW->acp3x_set_position(deviceType, linkPos, linearPos);
+        return m_pHW->sst_current_position(deviceType, linkPos, linearPos);
     }
     return STATUS_NO_SUCH_DEVICE;
 }
@@ -1251,15 +1228,14 @@ Note:
         //
         switch (NewState.DeviceState)
         {
-            //TODO: re-enable D0 / D3 states
             case PowerDeviceD0:
-                //m_pHW->sst_init();
+                m_pHW->sst_init();
                 break;
             case PowerDeviceD1:
             case PowerDeviceD2:
                 break;
             case PowerDeviceD3:
-                //m_pHW->sst_deinit();
+                m_pHW->sst_deinit();
                 break;
             default:
             

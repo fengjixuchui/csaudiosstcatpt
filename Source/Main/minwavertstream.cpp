@@ -266,7 +266,7 @@ VOID CMiniportWaveRTStream::GetHWLatency
 
     Latency_->ChipsetDelay = 0;
     Latency_->CodecDelay = 0;
-    Latency_->FifoSize = 0x100/*FIFO_SIZE*/;
+    Latency_->FifoSize = 0/*FIFO_SIZE*/;
 }
 
 //=============================================================================
@@ -421,20 +421,15 @@ NTSTATUS CMiniportWaveRTStream::SetState
 
         case KSSTATE_RUN:
             // Start DMA
-            ntStatus = m_pMiniport->AcquireDMA(this);
+            ntStatus = m_pMiniport->AcquireDMA(this, m_ulDmaBufferSize);
             if (!NT_SUCCESS(ntStatus)) {
                 return ntStatus;
             }
 
-            m_pMiniport->StartDMA(m_ulDmaBufferSize);
+            m_pMiniport->StartDMA();
             if (!NT_SUCCESS(ntStatus)) {
                 return ntStatus;
             }
-
-            /*if (m_KsState == KSSTATE_PAUSE) {
-                DbgPrint("Restoring last position\n");
-                m_pMiniport->UpdatePosition(m_lastLinkPos, m_lastLinearPos);
-            }*/
 
             break;
     }

@@ -33,6 +33,7 @@
     <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
     <SampleGuid>{F51739CE-5253-42B5-9191-57F28B5842C6}</SampleGuid>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -138,7 +139,6 @@
       </ExceptionHandling>
       <DisableSpecificWarnings>4595;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Midl>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(DDK_INC_PATH);..</AdditionalIncludeDirectories>
@@ -277,11 +277,15 @@
   <ItemGroup>
     <ClCompile Include="bitops.c" />
     <ClCompile Include="dsp.cpp" />
+    <ClCompile Include="dw_dma.cpp" />
     <ClCompile Include="firmware.cpp" />
     <ClCompile Include="hw.cpp" />
     <ClCompile Include="ipc.cpp" />
     <ClCompile Include="kshelper.cpp" />
     <ClCompile Include="loader.cpp" />
+    <ClCompile Include="messages.cpp" />
+    <ClCompile Include="pcm.cpp" />
+    <ClCompile Include="resource.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Inf Exclude="@(Inf)" Include="*.inf" />
@@ -294,11 +298,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="bitops.h" />
+    <ClInclude Include="dw_dma.h" />
     <ClInclude Include="firmware.h" />
     <ClInclude Include="pa2xxssp.h" />
     <ClInclude Include="registers.h" />
     <ClInclude Include="hw.h" />
     <ClInclude Include="messages.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

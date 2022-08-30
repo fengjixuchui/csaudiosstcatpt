@@ -1,6 +1,7 @@
 #include <ntddk.h>
 #include "definitions.h"
 #include "hw.h"
+#include "resource.h"
 
 /* FW load (200ms) plus operational delays */
 #define FW_READY_TIMEOUT_MS	250
@@ -48,6 +49,34 @@ void CCsAudioCatptSSTHW::sram_init(PRESOURCE sram, UINT32 start, UINT32 size) {
 	sram->end = start + size - 1;
 }
 
+void CCsAudioCatptSSTHW::sram_free(PRESOURCE sram) {
+	PRESOURCE res, save;
+
+	for (res = sram->child; res;) {
+		save = res->sibling;
+		release_resource(res);
+		ExFreePoolWithTag(res, CSAUDIOCATPTSST_POOLTAG);
+		res = save;
+	}
+}
+
+PRESOURCE CCsAudioCatptSSTHW::catpt_request_region(PRESOURCE root, size_t size)
+{
+	PRESOURCE res = root->child;
+	size_t addr = root->start;
+
+	for (;;) {
+		if (res->start - addr >= size)
+			break;
+		addr = res->end + 1;
+		res = res->sibling;
+		if (!res)
+			return NULL;
+	}
+
+	return __request_region(root, addr, size, 0);
+}
+
 NTSTATUS CCsAudioCatptSSTHW::catpt_load_block(PHYSICAL_ADDRESS pAddr, struct catpt_fw_block_hdr* blk, bool alloc)
 {
 	NTSTATUS status;
@@ -62,18 +91,27 @@ NTSTATUS CCsAudioCatptSSTHW::catpt_load_block(PHYSICAL_ADDRESS pAddr, struct cat
 		break;
 	}
 
-	UINT32 dst_addr = sram->start + blk->ram_offset;
+	UINT32 dst_addr = (UINT32)(sram->start + blk->ram_offset);
 	//TODO: mark region as busy
 
-	UNREFERENCED_PARAMETER(alloc);
+	if (alloc) {
+		PRESOURCE res = __request_region(sram, dst_addr, blk->size, 0);
+		if (!res) {
+			return STATUS_DEVICE_BUSY;
+		}
+	}
+
+	dst_addr |= CATPT_DMA_DSP_ADDR_MASK;
 
 	/* advance to data area */
 	pAddr.QuadPart += sizeof(*blk);
 
 	//TODO: dma_memcpy_todsp
-	status = STATUS_SUCCESS;
+	status = this->dmac->transfer_dma(dst_addr, pAddr.LowPart, blk->size);
 
-	//TODO: release busy region if dma error
+	if (!NT_SUCCESS(status)) {
+		__release_region(sram, dst_addr, blk->size);
+	}
 
 	return status;
 }
@@ -91,12 +129,11 @@ NTSTATUS CCsAudioCatptSSTHW::catpt_load_module(PHYSICAL_ADDRESS paddr, struct ca
 
 		blk = (struct catpt_fw_block_hdr*)((UINT8*)mod + offset);
 
-		//TODO: catpt load block
 		PHYSICAL_ADDRESS blockPaddr;
 		blockPaddr.QuadPart = paddr.QuadPart + offset;
 		status = catpt_load_block(blockPaddr, blk, true);
 		if (!NT_SUCCESS(status)) {
-			DbgPrint("load block failed: 0x%x\n", status);
+			CatPtPrint(DEBUG_LEVEL_ERROR, DBG_PNP, "load block failed: 0x%x\n", status);
 			return status;
 		}
 		/*
@@ -131,11 +168,10 @@ NTSTATUS CCsAudioCatptSSTHW::catpt_load_firmware(PHYSICAL_ADDRESS paddr, struct 
 		mod = (struct catpt_fw_mod_hdr*)((UINT8*)fw + offset);
 		if (strncmp(fw->signature, mod->signature,
 			FW_SIGNATURE_SIZE)) {
-			DbgPrint("module signature mismatch\n");
+			DPF(D_ERROR, "module signature mismatch\n");
 			return STATUS_INVALID_PARAMETER;
 		}
 
-		DbgPrint("Loaded module 0x%x\n", mod->module_id);
 		if (mod->module_id > CATPT_MODID_LAST)
 			return STATUS_INVALID_PARAMETER;
 
@@ -143,7 +179,7 @@ NTSTATUS CCsAudioCatptSSTHW::catpt_load_firmware(PHYSICAL_ADDRESS paddr, struct 
 		modulePaddr.QuadPart = paddr.QuadPart + offset;
 		status = catpt_load_module(modulePaddr, mod);
 		if (!NT_SUCCESS(status)) {
-			DbgPrint("load module failed: 0x%x\n", status);
+			CatPtPrint(DEBUG_LEVEL_ERROR, DBG_PNP, "load module failed: 0x%x\n", status);
 			return status;
 		}
 
@@ -171,7 +207,7 @@ NTSTATUS CCsAudioCatptSSTHW::catpt_load_image(PCWSTR path, BOOL restore) {
 	}
 
 	PHYSICAL_ADDRESS maxAddr;
-	maxAddr.QuadPart = MAXULONG64;
+	maxAddr.QuadPart = MAXULONG32;
 	void* vaddr;
 	vaddr = MmAllocateContiguousMemory(img->size, maxAddr);
 	if (!vaddr) {
@@ -204,7 +240,7 @@ NTSTATUS CCsAudioCatptSSTHW::catpt_boot_firmware(BOOL restore) {
 
 	status = catpt_load_image(L"\\SystemRoot\\system32\\DRIVERS\\IntcSST2.bin", restore);
 	if (status) {
-		DbgPrint("Load binaries failed: 0x%x\n", status);
+		CatPtPrint(DEBUG_LEVEL_ERROR, DBG_PNP, "Load binaries failed: 0x%x\n", status);
 		return status;
 	}
 
@@ -218,10 +254,11 @@ NTSTATUS CCsAudioCatptSSTHW::catpt_boot_firmware(BOOL restore) {
 		KeQuerySystemTimePrecise(&CurrentTime);
 
 		if (((CurrentTime.QuadPart - StartTime.QuadPart) / (10 * 1000)) >= FW_READY_TIMEOUT_MS) {
-			DbgPrint("Firmware ready timeout\n");
+			DPF(D_ERROR, "Firmware ready timeout\n");
 			return STATUS_TIMEOUT;
 		}
 	}
+	DPF(D_ERROR, "Firmware ready!!!\n");
 
 	/* update sram pg & clock once done booting */
 	dsp_update_srampge(&this->dram, this->spec->dram_mask);

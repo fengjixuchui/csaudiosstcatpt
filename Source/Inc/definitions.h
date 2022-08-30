@@ -14,6 +14,7 @@ Abstract:
 #ifndef _CSAUDIOACP3X_DEFINITIONS_H_
 #define _CSAUDIOACP3X_DEFINITIONS_H_
 
+#pragma warning(disable:4471)  // suppress enum forward declaration
 #include <portcls.h>
 #include <stdunk.h>
 #include <ksdebug.h>
@@ -21,6 +22,7 @@ Abstract:
 #include <wdf.h>
 #include <wdfminiport.h>
 #include <Ntstrsafe.h>
+#pragma warning(default:4471)
 #include "NewDelete.h"
 
 //=============================================================================
@@ -35,7 +37,7 @@ DEFINE_GUIDSTRUCT("836BA6D1-3FF7-4411-8BCD-469553452DCE", PID_CSAUDIOACP3X);
 #define PID_CSAUDIOACP3X DEFINE_GUIDNAMED(PID_CSAUDIOACP3X)
 
 // Pool tag used for CSAUDIOACP3X allocations
-#define CSAUDIOCATPTSST_POOLTAG               'SASM'  
+#define CSAUDIOCATPTSST_POOLTAG               'UASC'  
 
 // Debug module name
 #define STR_MODULENAME              "CSAUDIOACP3X: "
